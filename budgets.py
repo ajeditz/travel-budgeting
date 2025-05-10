@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def get_budget_data(business_id, budget_type=None):
+def get_budget_data(business_id, conn, budget_type=None):
     """
     Fetch budget data for a specific business and (optionally) budget type.
     
@@ -22,15 +22,6 @@ def get_budget_data(business_id, budget_type=None):
         dict: Budget data with metrics for analysis
     """
     try:
-        # Database connection
-        conn = mysql.connector.connect(
-            host='13.247.208.85',
-            port='3306',
-            database='vgtechde_gopaddid',
-            user='vgtechde_gopaddiv2',
-            password='[VZNh-]E%{6q'
-        )
-        
         cursor = conn.cursor(dictionary=True)
         
         # Build query dynamically based on budget_type
@@ -156,6 +147,7 @@ def get_budget_data(business_id, budget_type=None):
                 'department_projections': projections
             }
             
+            cursor.close()
             return summary
         else:
             return {
@@ -169,10 +161,6 @@ def get_budget_data(business_id, budget_type=None):
         return {
             'error': f"Database error: {err}"
         }
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
 
 # @lru_cache(maxsize=128)
 def generate_budget_analysis(budget_data):
@@ -412,13 +400,14 @@ from datetime import datetime
 
 def get_projected_spend(
     business_id: int,
+    conn,
     frequency: str = "yearly",
     year: Optional[int] = None,
     month: Optional[int] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
-    budget_data = get_budget_data(business_id)
+    budget_data = get_budget_data(business_id, conn)
     df = pd.DataFrame(budget_data.get("budgets", []))
     if df.empty:
         return {"projected_spend": 0.0, "currency": budget_data.get("currency", "NGN")}
@@ -454,14 +443,7 @@ def get_projected_spend(
         }
     }
 
-def get_department_insights(business_id: int, department_id: int):
-    conn = mysql.connector.connect(
-        host='13.247.208.85',
-        port='3306',
-        database='vgtechde_gopaddid',
-        user='vgtechde_gopaddiv2',
-        password='[VZNh-]E%{6q'
-    )
+def get_department_insights(business_id: int, department_id: int, conn=None):
     cursor = conn.cursor(dictionary=True)
 
     # Get department name
@@ -576,7 +558,6 @@ def get_department_insights(business_id: int, department_id: int):
         insights.append("No approved expenses found for this department.")
 
     cursor.close()
-    conn.close()
     return {
         "department_insights": insights,
         "department_id": department_id,
@@ -586,6 +567,7 @@ def get_department_insights(business_id: int, department_id: int):
 def get_department_projected_spend(
     business_id: int,
     department_id: int,
+    conn,
     frequency: str = "yearly",
     year: Optional[int] = None,
     month: Optional[int] = None,
@@ -593,13 +575,6 @@ def get_department_projected_spend(
     end_date: Optional[str] = None
 ):
     # Get department budget data
-    conn = mysql.connector.connect(
-        host='13.247.208.85',
-        port='3306',
-        database='vgtechde_gopaddid',
-        user='vgtechde_gopaddiv2',
-        password='[VZNh-]E%{6q'
-    )
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         """
@@ -611,7 +586,6 @@ def get_department_projected_spend(
     )
     budgets = cursor.fetchall()
     cursor.close()
-    conn.close()
 
     df = pd.DataFrame(budgets)
     if df.empty:
@@ -664,14 +638,7 @@ import mysql.connector
 import pandas as pd
 from datetime import datetime
 
-def get_approval_trend_insights(business_id: int):
-    conn = mysql.connector.connect(
-        host='13.247.208.85',
-        port='3306',
-        database='vgtechde_gopaddid',
-        user='vgtechde_gopaddiv2',
-        password='[VZNh-]E%{6q'
-    )
+def get_approval_trend_insights(business_id: int, conn):
     cursor = conn.cursor(dictionary=True)
 
     # Query to get approval times for each expense request with category
@@ -699,7 +666,6 @@ def get_approval_trend_insights(business_id: int):
     cursor.execute(query, (business_id, business_id, business_id))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
 
     df = pd.DataFrame(rows)
     insights = []
@@ -774,14 +740,7 @@ def get_approval_trend_insights(business_id: int):
         "business_id": business_id
     }
 
-def get_department_approval_trend_insights(business_id: int, department_id: int):
-    conn = mysql.connector.connect(
-        host='13.247.208.85',
-        port='3306',
-        database='vgtechde_gopaddid',
-        user='vgtechde_gopaddiv2',
-        password='[VZNh-]E%{6q'
-    )
+def get_department_approval_trend_insights(business_id: int, department_id: int, conn):
     cursor = conn.cursor(dictionary=True)
 
     query = """
@@ -809,7 +768,6 @@ def get_department_approval_trend_insights(business_id: int, department_id: int)
     cursor.execute(query, (business_id, business_id, business_id, department_id))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
 
     df = pd.DataFrame(rows)
     insights = []
@@ -880,7 +838,14 @@ def main():
     business_id = input("Enter the business ID: ")
     
     # Get budget data
-    budget_data = get_budget_data(business_id)
+    conn = mysql.connector.connect(
+        host='13.247.208.85',
+        port='3306',
+        database='vgtechde_gopaddid',
+        user='vgtechde_gopaddiv2',
+        password='[VZNh-]E%{6q'
+    )
+    budget_data = get_budget_data(business_id, conn)
     
     # Generate analysis
     analysis = generate_budget_analysis(budget_data)
